@@ -3,6 +3,7 @@ import functools
 import itertools
 import logging
 import sys
+import unittest
 import warnings
 
 from copy import deepcopy
@@ -693,7 +694,55 @@ def compile_fx(
         )
 
     fw_compiler = functools.partial(fw_compiler_base, is_inference=False)
-    inference_compiler = functools.partial(fw_compiler_base, is_inference=True)
+
+    if config.freezing:
+        from torch._inductor.freezing import freeze
+
+        def inference_compiler(
+            aot_autograd_model: torch.fx.GraphModule, example_inputs
+        ):
+            # partition_fn won't be called
+            joint_graph_passes(aot_autograd_model)
+
+            opt_model, preserved_arg_indices = freeze(
+                model_,
+                aot_autograd_model,
+                fw_metadata=torch._guards.TracingContext.get().fw_metadata,
+            )
+
+            example_inputs = [example_inputs[ind] for ind in preserved_arg_indices]
+            num_fixed = len(preserved_arg_indices) - num_example_inputs
+
+            fake_mode = detect_fake_mode(example_inputs)
+
+            # constant params will be real tensors, not fake
+            with unittest.mock.patch.object(fake_mode, "allow_non_fake_inputs", True):
+                optimized_function = inner_compile(
+                    opt_model,
+                    example_inputs,
+                    num_fixed=num_fixed,
+                    cudagraphs=cudagraphs,
+                    graph_id=graph_id,
+                    is_inference=True,
+                    boxed_forward_device_index=forward_device,
+                )
+
+            # Need to drop the args we have constant-ified.
+            params_flat = torch._guards.TracingContext.get().params_flat
+            for i in range(len(params_flat)):
+                if i not in preserved_arg_indices:
+                    params_flat[i] = None
+
+            def wrapper(args):
+                args_new = [args[i] for i in preserved_arg_indices]
+                args.clear()
+                return optimized_function(args_new)
+
+            wrapper._boxed_call = True
+            return wrapper
+
+    else:
+        inference_compiler = functools.partial(fw_compiler_base, is_inference=True)
 
     def partition_fn(graph, joint_inputs, **kwargs):
         joint_graph_passes(graph)

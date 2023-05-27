@@ -1529,7 +1529,10 @@ def aot_dispatch_base(flat_fn, flat_args: List[Tensor], aot_config: AOTConfig, *
             seed, offset = CUDARngStateHelper.get_torch_state_as_tuple(fake_mode)
             adjusted_flat_args = [seed, offset, *flat_args]
             flat_args.clear()  # Don't hold extra reference
-        compiled_fw = compiler(fw_module, adjusted_flat_args)
+
+        if torch._guards.TracingContext.get():
+            torch._guards.TracingContext.get().fw_metadata = fw_metadata
+        compiled_fw = compiler(fw_module, flat_args)
 
     # This boxed_call handling happens inside create_runtime_wrapper as well.
     # However, create_runtime_wrapper does not expect the rng offsets in the
@@ -3627,7 +3630,7 @@ def aot_module_simplified(
         **dict(mod.named_buffers(remove_duplicate=False)),
     }
     params_flat, params_spec = pytree.tree_flatten(params)
-    params_flat = tuple(params_flat)
+    params_flat = list(params_flat)
     params_len = len(params_flat)
 
     functional_call = create_functional_call(mod, params_spec, params_len)
@@ -3642,6 +3645,9 @@ def aot_module_simplified(
     full_args = []
     # First, the params
     full_args.extend(params_flat)
+
+    if torch._guards.TracingContext.get():
+        torch._guards.TracingContext.get().params_flat = params_flat
 
     aot_autograd_arg_pos_to_source = None
     # Then, the params 1:1 mapped sources, if relevant.
@@ -3703,10 +3709,12 @@ def aot_module_simplified(
         aot_config,
     )
 
+
     # TODO: There is something deeply wrong here; compiled_fn running with
     # the boxed calling convention, but aot_module_simplified somehow
     # historically returned a function that was not the boxed calling
     # convention.  This should get fixed...
+
     def forward(*runtime_args):
         full_args = []
         full_args.extend(params_flat)
