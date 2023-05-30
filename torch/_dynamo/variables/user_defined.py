@@ -417,6 +417,16 @@ class UserDefinedObjectVariable(UserDefinedVariable):
                     subobj, name, source=source, **options
                 )
             return variables.UserMethodVariable(subobj, self, source=source, **options)
+        elif isinstance(subobj, types.MethodType):
+            func = subobj.__func__
+            obj = subobj.__self__
+            obj_source = AttrSource(self.source, "__self__") if self.source else None
+            return variables.UserMethodVariable(
+                func,
+                UserDefinedObjectVariable(obj, source=obj_source, **options),
+                source=source,
+                **options,
+            )
 
         if (
             name in getattr(value, "__dict__", {})
