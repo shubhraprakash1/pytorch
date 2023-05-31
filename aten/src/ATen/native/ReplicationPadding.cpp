@@ -209,7 +209,7 @@ void replication_pad2d_backward_out_cpu_template(
       gradOutput.size(dimh));
 
   /* resize */
-  gradInput.resize_(input.sizes());
+  gradInput.resize_(input.sizes(), input.suggest_memory_format());
   if (gradInput.numel() == 0) {
     return;
   }
@@ -260,7 +260,7 @@ void replication_pad3d_backward_out_cpu_template(
       gradOutput.size(dimd));
 
   /* resize */
-  gradInput.resize_(input.sizes());
+  gradInput.resize_(input.sizes(), input.suggest_memory_format());
   if (gradInput.numel() == 0) {
     return;
   }
@@ -291,6 +291,9 @@ TORCH_IMPL_FUNC(replication_pad1d_backward_out_cpu) (
 TORCH_IMPL_FUNC(replication_pad2d_out_cpu) (
   const Tensor& input, IntArrayRef paddingSize, const Tensor& output
 ) {
+  // TODO: move this to TORCH_META_FUNC when CUDA has channels last support
+  output.resize_(output.sizes(), input.suggest_memory_format());
+
   replication_pad2d_kernel(kCPU, output, input, paddingSize);
 }
 
@@ -318,6 +321,9 @@ Tensor replication_pad2d_backward_cpu(
 TORCH_IMPL_FUNC(replication_pad3d_out_cpu) (
   const Tensor& input, IntArrayRef paddingSize, const Tensor& output
 ) {
+  // TODO: move this to TORCH_META_FUNC when CUDA has channels last support
+  output.resize_(output.sizes(), input.suggest_memory_format());
+
   replication_pad3d_kernel(kCPU, output, input, paddingSize);
 }
 
