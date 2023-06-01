@@ -99,10 +99,7 @@ def calculate_shards(
 
     print(json.dumps(test_file_times, indent=2))
 
-    print(json.dumps(test_file_times, indent=2))
-
-    print(json.dumps(get_with_pytest_shard(known_tests, test_file_times), indent=2))
-
+    print(get_with_pytest_shard(known_tests, test_file_times))
 
     sorted_tests = sorted(
         get_with_pytest_shard(known_tests, test_file_times),
@@ -121,7 +118,10 @@ def calculate_shards(
             min_sharded_job = min(sharded_jobs, key=lambda j: j.get_total_time())
             min_sharded_job.parallel.append(test)
 
-    print(sharded_jobs)
+    for job in sharded_jobs:
+        print(job.serial)
+        print(job.parallel)
+        print()
 
     # Round robin the unknown jobs starting with the smallest shard
     index = min(range(num_shards), key=lambda i: sharded_jobs[i].get_total_time())
