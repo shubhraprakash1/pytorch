@@ -9,6 +9,7 @@ from .quantizer import (
     SharedQuantizationSpec,
     DerivedQuantizationSpec,
 )
+from .x86_inductor_quantizer import X86InductorQuantizer
 
 __all__ = [
     "EdgeOrNode",
@@ -19,4 +20,5 @@ __all__ = [
     "FixedQParamsQuantizationSpec",
     "SharedQuantizationSpec",
     "DerivedQuantizationSpec",
+    "X86InductorQuantizer",
 ]
